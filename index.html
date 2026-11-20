@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Portfolio of Sai Pattnaik, full-stack developer and B.Tech CSE student in Gurugram.">
+<title>Sai Pattnaik 3D Portfolio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: a fixed WebGL scene sits behind one left-aligned content column. The scene turns with the
+   mouse and with scroll position. Three looks (orbit, particles, cubes) swap scene and palette. */
+:root {
+  --bg: #0a0907; --fg: #f6efe2; --muted: #a79c88; --line: rgba(255,230,180,.18);
+  --panel: rgba(22,18,12,.62); --chip: rgba(255,200,90,.13);
+  --accent: #ffc247; --accent2: #ff5c8a; --accent-fg: #1a1100;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+:root[data-look="particles"] {
+  --bg: #0a0907; --fg: #f6efe2; --muted: #a79c88; --line: rgba(255,230,180,.18);
+  --panel: rgba(22,18,12,.62); --chip: rgba(255,200,90,.13);
+  --accent: #ffc247; --accent2: #ff5c8a; --accent-fg: #1a1100; color-scheme: dark;
+}
+:root[data-look="cubes"] {
+  --bg: #e8ebf3; --fg: #10152a; --muted: #4f5a74; --line: rgba(16,21,42,.16);
+  --panel: rgba(255,255,255,.7); --chip: rgba(42,75,255,.09);
+  --accent: #2a4bff; --accent2: #ff6a3d; --accent-fg: #ffffff; color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-block: 0 120px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  transition: background .5s ease, color .5s ease;
+}
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; pointer-events: none; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+.wrap { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 96px; }
+
+/* Hero */
+.hero { padding-top: clamp(72px, 16vh, 160px); display: flex; flex-direction: column; gap: 22px; max-width: 640px; }
+.status { font-family: var(--font-mono); font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.status i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(3rem, 10vw, 6.2rem); line-height: .98; letter-spacing: -.035em; margin: 0; }
+h1 span { color: var(--accent); }
+.lede { font-size: clamp(1.1rem, 2.4vw, 1.35rem); line-height: 1.5; margin: 0; max-width: 36ch; text-wrap: balance; }
+.links { display: flex; flex-wrap: wrap; gap: 10px 12px; }
+.btn { font: 500 14px var(--font-body); text-decoration: none; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line); color: var(--fg); background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; display: inline-flex; align-items: center; transition: border-color .15s ease, transform .15s ease; }
+.btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.hint { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+/* Sections */
+section { display: flex; flex-direction: column; gap: 28px; }
+h2 { font-family: var(--font-mono); font-weight: 500; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0; display: flex; align-items: center; gap: 14px; }
+h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+p { margin: 0; }
+
+/* Project cards */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; perspective: 1200px; }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  transform-style: preserve-3d; transition: transform .18s ease, border-color .2s ease; will-change: transform;
+}
+.card:hover { border-color: var(--accent); }
+.card.wide { grid-column: 1 / -1; }
+.kind { font-family: var(--font-mono); font-size: 12px; color: var(--accent); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.kind span { color: var(--muted); }
+.card h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; line-height: 1.2; letter-spacing: -.01em; margin: 0; }
+.card.wide h3 { font-size: 1.9rem; }
+.card p { color: var(--fg); opacity: .92; max-width: 64ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 4px 0 0; padding: 0; list-style: none; font-size: 14px; color: var(--muted); }
+.facts strong { font-family: var(--font-display); font-size: 1.3rem; color: var(--fg); font-weight: 600; margin-right: 6px; }
+.tags { list-style: none; margin: auto 0 0; padding: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.tags li { font-family: var(--font-mono); font-size: 12px; padding: 4px 10px; border-radius: 6px; background: var(--chip); }
+
+.bullets { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 74ch; }
+.bullets li { opacity: .92; }
+.bullets li::marker { color: var(--accent); }
+
+/* Skills */
+.skills { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.skill { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); min-width: 0; }
+.skill h3 { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 500; margin: 0 0 8px; }
+
+/* Background */
+.rows { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 4px 28px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.when { font-family: var(--font-mono); font-size: 13px; color: var(--muted); padding-top: 3px; }
+.row h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; margin: 0; }
+.row p { color: var(--muted); font-size: 15px; }
+
+/* Contact */
+.contact { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 32px; display: flex; flex-direction: column; gap: 18px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.contact h3 { font-family: var(--font-display); font-size: clamp(1.5rem, 4vw, 2.2rem); line-height: 1.15; letter-spacing: -.02em; margin: 0; max-width: 22ch; }
+.mail { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; }
+.mail code { font-family: var(--font-mono); font-size: 14px; background: var(--chip); padding: 9px 13px; border-radius: 8px; overflow-wrap: anywhere; user-select: all; }
+footer { font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+
+/* Welcome screen */
+html.gate, html.gate body { overflow: hidden; }
+html.gate .looks { opacity: 0; pointer-events: none; }
+html.gate main { opacity: 0; visibility: hidden; }
+main { transition: opacity .9s ease .2s; }
+.looks { transition: opacity .5s ease; }
+.welcome {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 18px;
+  padding-block: 32px;
+  padding-left: max(24px, env(safe-area-inset-left, 0px), calc((100vw - 1040px) / 2));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 82%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 55%, color-mix(in srgb, var(--bg) 0%, transparent) 100%);
+  transition: opacity .8s ease, transform .8s cubic-bezier(.7,0,.3,1);
+}
+.welcome.leaving { opacity: 0; transform: translateY(-6%) scale(1.04); pointer-events: none; }
+.w-small { font-family: var(--font-mono); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.w-name { font-family: var(--font-display); font-weight: 700; font-size: clamp(3.2rem, 12vw, 7.4rem); line-height: .95; letter-spacing: -.04em; }
+.w-role { font-size: clamp(1rem, 2.4vw, 1.3rem); color: var(--muted); max-width: 34ch; }
+.enter {
+  margin-top: 10px; font: 600 16px var(--font-body); cursor: pointer;
+  background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 999px;
+  padding: 16px 30px; display: inline-flex; align-items: center; gap: 12px;
+  box-shadow: 0 0 0 0 var(--accent); animation: pulse 2.2s ease-out infinite;
+}
+.enter span { transition: transform .2s ease; }
+.enter:hover span { transform: translateX(5px); }
+.w-hint { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 18px color-mix(in srgb, var(--accent) 0%, transparent); } }
+@media (max-width: 760px) {
+  .welcome { background: color-mix(in srgb, var(--bg) 45%, transparent); justify-content: flex-end; padding-block: 32px 96px; }
+}
+@media (prefers-reduced-motion: reduce) { .enter { animation: none; } .welcome { transition: opacity .2s; } .welcome.leaving { transform: none; } }
+
+/* Look switcher */
+.looks {
+  position: fixed; z-index: 5; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 4px; padding: 5px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  max-width: calc(100vw - 32px);
+}
+.looks span { font-family: var(--font-mono); font-size: 11px; color: var(--muted); padding: 0 8px 0 12px; letter-spacing: .06em; text-transform: uppercase; }
+.looks button { font: 500 13px var(--font-body); color: var(--fg); background: transparent; border: 0; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+.looks button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+
+@media (max-width: 760px) {
+  .wrap { gap: 72px; }
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .row { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+  .contact { padding: 22px; }
+  .card { padding: 22px; }
+  .looks span { display: none; }
+  .hint { display: none; }
+  #gl { opacity: .4; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card, .btn, body { transition: none; }
+}
+</style>
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+
+
+<canvas id="gl" aria-hidden="true"></canvas>
+
+<div class="welcome" id="welcome" role="dialog" aria-label="Welcome">
+  <p class="w-small">Welcome to my portfolio</p>
+  <div class="w-name">Sai<br>Pattnaik</div>
+  <p class="w-role">Full-stack developer, B.Tech CSE student, Gurugram.</p>
+  <button class="enter" id="enter" type="button">Enter <span aria-hidden="true">&rarr;</span></button>
+  <p class="w-hint">Click the button or press Enter</p>
+</div>
+
+<main class="wrap">
+  <header class="hero">
+    <div class="status"><i aria-hidden="true"></i><span>B.Tech CSE, BML Munjal University, class of 2028</span><span aria-hidden="true">&middot;</span><span>Gurugram, India</span></div>
+    <h1>Sai<br><span>Pattnaik</span></h1>
+    <p class="lede">Full-stack developer who learns by building things end to end, and cares about them still working when something fails.</p>
+    <div class="links">
+      <a class="btn primary" href="https://github.com/saipattnaik24cse-alt" target="_blank" rel="noopener">GitHub</a>
+      <a class="btn" href="http://www.linkedin.com/in/sai-pattnaik-819767336" target="_blank" rel="noopener">LinkedIn</a>
+      <a class="btn" href="#contact">Contact</a>
+    </div>
+    <p class="hint">Move the mouse or scroll to turn the scene.</p>
+  </header>
+
+  <section id="experience" aria-labelledby="h-exp">
+    <h2 id="h-exp">Experience</h2>
+    <article class="card wide">
+      <div class="kind">Previous experience <span>June 2026 &ndash; July 2026</span></div>
+      <h3>Full-Stack Developer Intern, VentureX India</h3>
+      <ul class="bullets">
+        <li>Built a GPS + Wi-Fi multi-tenant attendance SaaS platform for corporate organizations with geofence verification, anti-proxy device binding, and role-based access control.</li>
+        <li>Developed 40+ REST APIs covering JWT authentication, Haversine GPS geofence validation, Wi-Fi BSSID checks, and RBAC for Employee, HR, Admin, and Super Admin roles using Spring Boot 3 and Java 17.</li>
+        <li>Designed a 28-entity PostgreSQL schema with full multi-tenant org_id scoping across all modules.</li>
+        <li>Built the React.js admin dashboard with live attendance tracking, Leaflet geofence maps, Wi-Fi router configuration, burnout risk alerts, and CSV/PDF report export.</li>
+        <li>Implemented Spring @Scheduled background jobs for auto-absence marking, FCM push notifications on geofence exit, and a Burnout &amp; Defaulter Predictor analyzing 21 days of attendance data weekly.</li>
+      </ul>
+      <ul class="facts">
+        <li><strong>40+</strong>REST APIs</li>
+        <li><strong>28</strong>entity schema</li>
+        <li><strong>21</strong>days of data in the burnout predictor</li>
+      </ul>
+      <ul class="tags"><li>Java 17</li><li>Spring Boot 3</li><li>PostgreSQL</li><li>React.js</li><li>JWT</li><li>Firebase FCM</li><li>Leaflet</li></ul>
+    </article>
+  </section>
+
+  <section id="projects" aria-labelledby="h-projects">
+    <h2 id="h-projects">Projects</h2>
+    <div class="grid">
+      <article class="card">
+        <div class="kind">Generative AI <span>May 2026</span></div>
+        <h3>AI Media Automation Pipeline</h3>
+        <p>Takes a text topic and turns it into an AI image, a voiceover, an animated video and a final MP4. Fallback API handling and async batch processing keep generation going when a paid API or model fails.</p>
+        <ul class="tags"><li>Python</li><li>Groq LLM</li><li>ElevenLabs</li><li>FFmpeg</li><li>Pollinations AI</li></ul>
+      </article>
+
+      <article class="card">
+        <div class="kind">Web app</div>
+        <h3>NMISSION</h3>
+        <p>A fashion brand platform on the MERN stack. After refactoring the Node.js and Express.js layer, API response time dropped by 25% while the site handled 500+ concurrent users.</p>
+        <ul class="facts"><li><strong>500+</strong>concurrent users</li><li><strong>25%</strong>faster API</li></ul>
+        <ul class="tags"><li>MongoDB</li><li>Express.js</li><li>React</li><li>Node.js</li></ul>
+      </article>
+
+      <article class="card">
+        <div class="kind">Android app</div>
+        <h3>Thryve</h3>
+        <p>A health and menstrual cycle tracker with real-time vitals monitoring, predictive cycle analytics and custom UI views. It syncs through a PHP and MySQL REST backend and signs users in with Firebase authentication.</p>
+        <ul class="tags"><li>Java</li><li>Android Studio</li><li>PHP</li><li>MySQL</li><li>Firebase</li></ul>
+      </article>
+
+      <article class="card">
+        <div class="kind">Computer vision</div>
+        <h3>Smart Vehicle Detection System</h3>
+        <p>Detects helmets, seatbelts and faces in real time from live video streams, using an optimized computer vision pipeline.</p>
+        <ul class="tags"><li>Python</li><li>OpenCV</li><li>ESP32-CAM</li></ul>
+      </article>
+    </div>
+  </section>
+
+  <section id="skills" aria-labelledby="h-skills">
+    <h2 id="h-skills">Skills</h2>
+    <div class="skills">
+      <div class="skill"><h3>Languages</h3><p>Java, Python, JavaScript, C</p></div>
+      <div class="skill"><h3>Frameworks</h3><p>Spring Boot, React.js, React Native, Node.js, Express.js</p></div>
+      <div class="skill"><h3>Databases</h3><p>PostgreSQL, MySQL, MongoDB</p></div>
+      <div class="skill"><h3>Tools</h3><p>Git, GitHub, Postman, Swagger UI, Firebase FCM, Docker</p></div>
+      <div class="skill"><h3>Concepts</h3><p>REST API design, JWT auth, multi-tenant SaaS, geofencing, OOP, DSA, system design</p></div>
+    </div>
+  </section>
+
+  <section id="background" aria-labelledby="h-bg">
+    <h2 id="h-bg">Education &amp; activities</h2>
+    <div class="rows">
+      <div class="row"><div class="when">2024 &ndash; 2028</div><div><h3>B.Tech, Computer Science &amp; Engineering</h3><p>BML Munjal University, Gurugram</p></div></div>
+      <div class="row"><div class="when">Class XII</div><div><h3>Higher Secondary, CBSE</h3><p>O.P. Jindal School, Angul, Odisha</p></div></div>
+      <div class="row"><div class="when">Class X</div><div><h3>Secondary, CBSE</h3><p>LHTA School, Odisha</p></div></div>
+      <div class="row"><div class="when">Clubs</div><div><h3>Campus involvement</h3><p>Automobile Club (Executive Committee, Marketing), Robotics Club (Organizing Committee, Robothon 2025), SATA Club (TechNova, Marketing).</p></div></div>
+    </div>
+  </section>
+
+  <section id="contact" aria-labelledby="h-contact">
+    <h2 id="h-contact">Contact</h2>
+    <div class="contact">
+      <h3>Hiring for an internship or a junior role? Send me a note.</h3>
+      <div class="mail">
+        <code id="email">sai.pattnaik.24cse@bmu.edu.in</code>
+        <button class="btn" id="copy" type="button">Copy email</button>
+        <a class="btn" href="mailto:sai.pattnaik.24cse@bmu.edu.in">Open mail app</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>Sai Pattnaik &middot; Gurugram, India</footer>
+</main>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  var canvas = document.getElementById("gl");
+  var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var renderer, scene, camera, group, anim = function () {}, inst = null, camY = 0;
+  var mx = 0, my = 0, tx = 0, ty = 0, scrollP = 0, sp = 0, running = false, current = "orbit", burst = 0;
+
+  function css(n) { return getComputedStyle(root).getPropertyValue(n).trim(); }
+
+  function setup() {
+    if (!window.THREE) return false;
+    try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true }); }
+    catch (e) { return false; }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    resize();
+    return true;
+  }
+
+  function layout() {
+    if (!group) return;
+    var wide = window.innerWidth > 860, cubes = current === "cubes";
+    var s = wide ? (cubes ? 0.6 : 1) : (cubes ? 0.5 : 0.62);
+    group.scale.setScalar(s);
+    group.position.set(wide ? (cubes ? 3.3 : 2.7) : 0, wide ? (cubes ? -0.3 : 0) : 2.1, 0);
+  }
+
+  function resize() {
+    if (!renderer) return;
+    var w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    layout();
+    if (reduce) draw(0);
+  }
+
+  function clear() {
+    for (var i = scene.children.length - 1; i >= 0; i--) {
+      var c = scene.children[i];
+      scene.remove(c);
+      c.traverse(function (o) {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+    }
+    group = new THREE.Group();
+    scene.add(group);
+    inst = null;
+  }
+
+  function build(name) {
+    clear();
+    var a = new THREE.Color(css("--accent")), b = new THREE.Color(css("--accent2"));
+    camY = 0;
+
+    if (name === "orbit") {
+      var ico = new THREE.Mesh(new THREE.IcosahedronGeometry(1.7, 1),
+        new THREE.MeshBasicMaterial({ color: a, wireframe: true, transparent: true, opacity: 0.7 }));
+      var knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.75, 0.22, 140, 16),
+        new THREE.MeshBasicMaterial({ color: b, wireframe: true, transparent: true, opacity: 0.9 }));
+      var ring = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.012, 8, 180),
+        new THREE.MeshBasicMaterial({ color: a, transparent: true, opacity: 0.55 }));
+      var ring2 = ring.clone(); ring2.scale.setScalar(1.18);
+      group.add(ico, knot, ring, ring2);
+      anim = function (t) {
+        ico.rotation.y = t * 0.25; ico.rotation.x = t * 0.12;
+        knot.rotation.y = -t * 0.5; knot.rotation.z = t * 0.3;
+        ring.rotation.set(1.2, 0, t * 0.2); ring2.rotation.set(0.5, 0.6, -t * 0.15);
+      };
+    }
+
+    if (name === "particles") {
+      var mk = function (n, r, jitter, color, size) {
+        var pos = new Float32Array(n * 3);
+        for (var i = 0; i < n; i++) {
+          var th = 2 * Math.PI * Math.random(), ph = Math.acos(2 * Math.random() - 1);
+          var rr = r + (Math.random() - 0.5) * jitter;
+          pos[i * 3] = rr * Math.sin(ph) * Math.cos(th);
+          pos[i * 3 + 1] = rr * Math.sin(ph) * Math.sin(th);
+          pos[i * 3 + 2] = rr * Math.cos(ph);
+        }
+        var g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        return new THREE.Points(g, new THREE.PointsMaterial({ color: color, size: size, transparent: true, opacity: 0.9, sizeAttenuation: true }));
+      };
+      var outer = mk(7000, 2.2, 0.5, a, 0.03), inner = mk(2500, 1.1, 0.3, b, 0.035);
+      group.add(outer, inner);
+      anim = function (t) {
+        outer.rotation.y = t * 0.12; outer.rotation.x = Math.sin(t * 0.2) * 0.25;
+        inner.rotation.y = -t * 0.3;
+        var s = 1 + Math.sin(t * 0.8) * 0.04; outer.scale.setScalar(s);
+      };
+    }
+
+    if (name === "cubes") {
+      scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+      var d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(3, 6, 4); scene.add(d);
+      var N = 11;
+      inst = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.5, 0.5),
+        new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.1 }), N * N);
+      var col = new THREE.Color(), k = 0;
+      for (var i = 0; i < N; i++) for (var j = 0; j < N; j++) {
+        col.copy(a).lerp(b, (i + j) / (2 * N - 2)); inst.setColorAt(k++, col);
+      }
+      inst.instanceColor.needsUpdate = true;
+      group.add(inst);
+      group.rotation.x = 0.1;
+      camY = 4;
+      var dummy = new THREE.Object3D();
+      anim = function (t) {
+        var n = 0;
+        for (var i = 0; i < N; i++) for (var j = 0; j < N; j++) {
+          var y = Math.sin(i * 0.55 + t) * 0.35 + Math.cos(j * 0.55 + t * 0.8) * 0.35;
+          dummy.position.set((i - N / 2) * 0.72, y, (j - N / 2) * 0.72);
+          dummy.scale.set(1, 1 + y * 0.8, 1);
+          dummy.updateMatrix(); inst.setMatrixAt(n++, dummy.matrix);
+        }
+        inst.instanceMatrix.needsUpdate = true;
+      };
+    }
+    layout();
+    if (reduce) draw(0);
+  }
+
+  function draw(t) {
+    tx += (mx - tx) * 0.05; ty += (my - ty) * 0.05; sp += (scrollP - sp) * 0.06;
+    burst *= 0.95;
+    camera.position.set(tx * 0.9, camY + ty * 0.6 - sp * 1.2, 7 - burst * 2.2);
+    camera.lookAt(0, -sp * 0.6, 0);
+    group.rotation.y = sp * 2.2 + burst * 1.4;
+    anim(t);
+    renderer.render(scene, camera);
+  }
+
+  function loop(ms) { draw(ms / 1000); requestAnimationFrame(loop); }
+
+  // Welcome screen: page stays locked until the visitor enters
+  var main = document.querySelector("main"), welcome = document.getElementById("welcome"),
+      enterBtn = document.getElementById("enter"), entered = false;
+  root.classList.add("gate");
+  main.setAttribute("inert", "");
+  function enter() {
+    if (entered) return;
+    entered = true;
+    root.classList.remove("gate");
+    main.removeAttribute("inert");
+    welcome.classList.add("leaving");
+    burst = reduce ? 0 : 1;
+    window.scrollTo(0, 0);
+    setTimeout(function () { welcome.hidden = true; }, 850);
+  }
+  enterBtn.addEventListener("click", enter);
+  document.addEventListener("keydown", function (e) { if (!entered && e.key === "Enter") enter(); });
+  try { enterBtn.focus({ preventScroll: true }); } catch (e) {}
+
+  var gl = setup();
+
+  function setLook(name, save) {
+    current = name;
+    root.setAttribute("data-look", name);
+    var btns = document.querySelectorAll(".looks button");
+    for (var i = 0; i < btns.length; i++) btns[i].setAttribute("aria-pressed", btns[i].getAttribute("data-look") === name ? "true" : "false");
+    if (save) { try { localStorage.setItem("look", name); } catch (e) {} }
+    if (gl) build(name);
+  }
+
+
+  setLook("particles", false);
+
+  if (gl) {
+    window.addEventListener("resize", resize);
+    if (!reduce) {
+      window.addEventListener("pointermove", function (e) {
+        mx = (e.clientX / window.innerWidth - 0.5) * 2; my = -(e.clientY / window.innerHeight - 0.5) * 2;
+      });
+      window.addEventListener("scroll", function () {
+        var m = document.documentElement.scrollHeight - window.innerHeight;
+        scrollP = m > 0 ? window.scrollY / m : 0;
+      }, { passive: true });
+      requestAnimationFrame(loop);
+    }
+  }
+
+  // 3D tilt on project cards (mouse only)
+  if (!reduce) {
+    var cards = document.querySelectorAll(".card");
+    for (var c = 0; c < cards.length; c++) (function (el) {
+      el.addEventListener("pointermove", function (e) {
+        if (e.pointerType !== "mouse") return;
+        var r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+        el.style.transform = "rotateY(" + (x * 8).toFixed(2) + "deg) rotateX(" + (-y * 8).toFixed(2) + "deg)";
+      });
+      el.addEventListener("pointerleave", function () { el.style.transform = ""; });
+    })(cards[c]);
+  }
+
+  // Copy email
+  var btn = document.getElementById("copy"), mail = document.getElementById("email");
+  btn.addEventListener("click", function () {
+    var text = mail.textContent.trim();
+    function selectIt() {
+      var r = document.createRange(); r.selectNodeContents(mail);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = "Selected, press copy";
+    }
+    function done() { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy email"; }, 1800); }
+    try { navigator.clipboard.writeText(text).then(done, selectIt); } catch (e) { selectIt(); }
+  });
+})();
+</script>
+
+</body>
+</html>
